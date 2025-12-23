@@ -182,7 +182,7 @@ class Trap(pygame.sprite.Sprite):
         self.damage = 20 # 衝突時のダメージ量
         self.life = 1   # トラップの耐久回数（1回衝突したら消える）
 
-    def update(self, enemy_group):
+    def update(self, enemy_group, gm):
          # 敵との衝突判定をメインループではなく、トラップのupdate内で行う
         hits = pygame.sprite.spritecollide(self, enemy_group, False)
 
@@ -192,6 +192,10 @@ class Trap(pygame.sprite.Sprite):
                 self.life -= 1
                 print(f"Trap hit! Enemy HP: {enemy.hp}, Trap Life: {self.life}")
                     
+                # --- 追加：敵の死亡判定 ---
+                if enemy.hp <= 0:
+                    gm.chicken += enemy.value  # 報酬を加算
+                    enemy.kill()               # 敵を消滅させる
 
         # トラップの耐久が0になったら削除
         if self.life <= 0:
@@ -341,7 +345,7 @@ def main():
             tower_group.update(enemy_group, bullet_group) # 【担当E】is_feverを渡す
             bullet_group.update()
             
-            trap_group.update(enemy_group)
+            trap_group.update(enemy_group, gm)
             # 衝突判定：弾 vs こうかとん
             hits = pygame.sprite.groupcollide(bullet_group, enemy_group, True, False)
             for bullet, hit_enemies in hits.items():
