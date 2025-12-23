@@ -367,7 +367,7 @@ class Bullet(pygame.sprite.Sprite):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Koukaton Defense Base")
+    pygame.display.set_caption("Attack on Koukaton")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 40)
     large_font = pygame.font.SysFont(None, 80) # サイズを少し大きく修正
