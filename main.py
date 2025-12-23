@@ -39,44 +39,51 @@ TILE_SPAWN = 3
 # ゲーム状態
 STATE_PLAY = 1
 
+STATE_GAMEOVER = 2
+
 # ====================================================
 #  2. クラス定義エリア
 # ====================================================
 
 class GameManager:
-    """
-    ゲーム全体の状態を管理するクラス
-    """
     def __init__(self):
-        self.chicken = 100  # 通貨
-        self.life = 20      # 拠点ライフ
+        self.chicken = 100
+        self.life = 10
         self.state = STATE_PLAY
-        # フィーバー関連の初期化
-        self.fever_gauge = 30  # フィーバーゲージ (最大30)
-        self.is_fever = False  # フィーバー中かどうかのフラグ
-        self.fever_timer = 0   # フィーバー残り時間 (フレーム数)
-        self.FEVER_DURATION = FPS * 20  # 20秒間
+        self.fever_gauge = 0 
+        self.is_fever = False
+        self.fever_timer = 0
+        self.FEVER_DURATION = FPS * 20
 
     def activate_fever(self):
-        """フィーバー状態を開始する"""
         if not self.is_fever:
             self.fever_timer = self.FEVER_DURATION
             self.is_fever = True
-            self.fever_gauge = 0 # ゲージをリセット
+            self.fever_gauge = 0 
             print("--- FEVER TIME START! ---")
 
     def update(self):
-        # フィーバータイマーの減算処理
         if self.is_fever:
             self.fever_timer -= 1
             if self.fever_timer <= 0:
                 self.is_fever = False
-                self.fever_timer = 0
                 print("--- FEVER TIME END! ---")
 
+    # --- ここを変更・追加 ---
     def check_gameover(self):
+        """ライフが0以下になったら状態をゲームオーバーにする"""
         if self.life <= 0:
-            print("Game Over! (Logic not implemented yet)")
+            self.state = STATE_GAMEOVER
+
+    def reset_game(self):
+        """ゲーム変数を初期値に戻す"""
+        self.chicken = 100
+        self.life = 10
+        self.state = STATE_PLAY
+        self.fever_gauge = 0
+        self.is_fever = False
+        self.fever_timer = 0
+    # -----------------------
 
 
 class MapManager:
@@ -322,6 +329,7 @@ def main():
     pygame.display.set_caption("Koukaton Defense Base")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 40)
+    large_font = pygame.font.SysFont(None,40)
 
     gm = GameManager()
     map_manager = MapManager()
@@ -329,6 +337,9 @@ def main():
     enemy_group = pygame.sprite.Group()
     tower_group = pygame.sprite.Group()
     bullet_group = pygame.sprite.Group()
+    
+    
+    
 
 
     
@@ -338,6 +349,9 @@ def main():
     
     spawn_timer = 0
     TRAP_COST = 50  # トラップの設置コスト
+    
+    start_ticks = pygame.time.get_ticks()
+    
     running = True
     while running:
         # --- 1. イベント処理 ---
@@ -411,34 +425,50 @@ def main():
                     # ゲージが満タンならフィーバー発動
                     if gm.fever_gauge >= 30:
                         gm.activate_fever()
+       
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    gm.reset_game()
+                    enemy_group.empty()                        
+                    bullet_group.empty()
+                    tower_group.empty()
+                    tower_group.add(Tower(14 * TILE_SIZE, 4 * TILE_SIZE))
+                    spawn_timer = 0
+                elif event.key == pygame.K_q:
+                    running = False
+
 
         # --- 2. 更新処理 ---
+
         if gm.state == STATE_PLAY:
             gm.update()
-
-            # 敵出現ロジック
-            spawn_interval = 120
-            if gm.is_fever:
-                spawn_interval = 50  # 【担当E】フィーバー中は出現間隔を短くする
+            
+            # 難易度計算
+            elapsed_time = (pygame.time.get_ticks() - start_ticks) / 1000
+            difficulty_scale = elapsed_time / 30
+            
+            # 敵出現間隔の決定（フィーバー中は短く）
+            spawn_interval = 50 if gm.is_fever else 120
             spawn_timer += 1
             
             if spawn_timer >= spawn_interval: 
                 spawn_timer = 0
-                is_elite = random.random() < 0.2 # 20%でエリート
+                is_elite = random.random() < 0.2
                 new_enemy = Koukaton(map_manager.waypoints, is_elite)
-                enemy_group.add(new_enemy)
                 
-            if spawn_timer >= 120: 
-                
-                new_enemy = Koukaton(map_manager.waypoints)
+                # 経過時間に合わせて敵を少しずつ強くする
+                new_enemy.hp += int(10 * difficulty_scale)
+                new_enemy.speed += (0.5 * difficulty_scale)
                 enemy_group.add(new_enemy)
-                spawn_timer = 0
+            
+            # 各オブジェクトの更新
             enemy_group.update(gm)
-            tower_group.update(enemy_group, bullet_group, gm.is_fever) # 【担当E】is_feverを渡す
-            tower_group.update(enemy_group, bullet_group)
+            # 引数を3つ渡す方に統一（is_feverを反映させるため）
+            tower_group.update(enemy_group, bullet_group, gm.is_fever) 
             bullet_group.update()
             trap_group.update(enemy_group, gm)
-            # 衝突判定：弾 vs こうかとん
+
+            # 衝突判定（弾 vs 敵）
             hits = pygame.sprite.groupcollide(bullet_group, enemy_group, True, False)
             for bullet, hit_enemies in hits.items():
                 for enemy in hit_enemies:
@@ -446,10 +476,10 @@ def main():
                     if enemy.hp <= 0:
                         enemy.kill()
                         gm.chicken += enemy.value
-                        # 【担当E】ここにフィーバーゲージ増加処理を追加
                         if not gm.is_fever:
-                             gm.fever_gauge = min(30, gm.fever_gauge + 1)
+                            gm.fever_gauge = min(30, gm.fever_gauge + 1)
 
+            # ★重要：ここでゲームオーバー判定を行う
             gm.check_gameover()
 
         # --- 3. 描画処理 ---
@@ -485,6 +515,20 @@ def main():
 
         # 【担当A】ここに「elif gm.state == STATE_GAMEOVER:」の描画処理を追加してください
 
+  
+        elif gm.state == STATE_GAMEOVER:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay.set_alpha(128)
+            overlay.fill(BLACK)
+            screen.blit(overlay, (0,0))
+            
+            txt_over = large_font.render("GAME OVER", True, RED)
+            txt_retry = font.render("Press R to Restart / Q to Quit", True, WHITE)
+            
+            # 中央に配置
+            screen.blit(txt_over, (SCREEN_WIDTH//2 - 160, SCREEN_HEIGHT//2 - 50))
+            screen.blit(txt_retry, (SCREEN_WIDTH//2 - 180, SCREEN_HEIGHT//2 + 50))
+            
         pygame.display.flip()
         clock.tick(FPS)
 
