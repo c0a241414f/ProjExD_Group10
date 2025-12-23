@@ -121,6 +121,13 @@ class MapManager:
             (660, 380)   # [16][9] 右へ（ゴール）
         ]
 
+        # 【追加箇所】スポーン・拠点画像の読み込み (元のプログラムの115行目以降に追加)
+        try:
+            self.base_img = pygame.image.load(os.path.join("fig", "KL.jpg")).convert_alpha()
+            self.base_img = pygame.transform.scale(self.base_img, (TILE_SIZE, TILE_SIZE))
+        except:
+            self.base_img = None
+
     def draw(self, screen, is_fever=False):
         # 【担当E】is_feverフラグを受け取り、フィーバー中は背景色を変えてください
         if is_fever:
@@ -139,6 +146,11 @@ class MapManager:
                 else: color = BLACK
                 
                 pygame.draw.rect(screen, color, rect)
+                
+                # 【追加箇所】スポーンと拠点に画像を表示 (元のプログラム130行目付近)
+                if (tile == TILE_BASE or tile == TILE_SPAWN) and self.base_img:
+                    screen.blit(self.base_img, rect)
+                
                 pygame.draw.rect(screen, (0, 50, 0), rect, 1)
     
     def is_placeable(self, x, y):
@@ -164,8 +176,17 @@ class Koukaton(pygame.sprite.Sprite):
     """
     def __init__(self, waypoints, is_elite = False):
         super().__init__()
-        self.image = pygame.Surface((20, 20))
-        self.image.fill(PURPLE if is_elite else RED) # エリートなら色を変える
+        # 【修正箇所】Surface作成を画像読み込みに変更 (元のプログラム144行目)
+        try:
+            self.image = pygame.image.load(os.path.join("fig", "enemy.png")).convert_alpha()
+            size = (35, 35) if is_elite else (25, 25)
+            self.image = pygame.transform.scale(self.image, size)
+            if is_elite:
+                self.image.fill(PURPLE, special_flags=pygame.BLEND_RGB_MULT)
+        except:
+            self.image = pygame.Surface((20, 20))
+            self.image.fill(PURPLE if is_elite else RED) # エリートなら色を変える
+
         self.rect = self.image.get_rect()
         
         self.waypoints = waypoints
@@ -237,8 +258,14 @@ class Tower(pygame.sprite.Sprite):
     """
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
-        self.image.fill(BLUE)
+        # 【修正箇所】Surface作成を画像読み込みに変更 (元のプログラム214行目)
+        try:
+            self.image = pygame.image.load(os.path.join("fig", "tower.png")).convert_alpha()
+            self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
+        except:
+            self.image = pygame.Surface((TILE_SIZE, TILE_SIZE))
+            self.image.fill(BLUE)
+
         self.rect = self.image.get_rect(topleft=(x, y))
         
         self.range = 150
@@ -264,8 +291,8 @@ class Tower(pygame.sprite.Sprite):
             self.range += 20
             self.cooldown = max(5, self.cooldown - 5)
             
-            new_green = min(255, 50 + self.level * 40)
-            self.image.fill((0, new_green, 255))
+            # 強化の視覚効果（画像の場合は少し色を重ねる等）
+            self.image.fill((20, 20, 20), special_flags=pygame.BLEND_RGB_ADD)
             
     def update(self, enemy_group, bullet_group, is_fever=False):
         # 【担当E】is_feverフラグを受け取り、フィーバー中はクールダウンを短くしてください
@@ -297,8 +324,14 @@ class Bullet(pygame.sprite.Sprite):
     """
     def __init__(self, start_pos, target_pos):
         super().__init__()
-        self.image = pygame.Surface((8, 8))
-        self.image.fill(YELLOW)
+        # 【修正箇所】Surface作成を画像読み込みに変更 (元のプログラム260行目)
+        try:
+            self.image = pygame.image.load(os.path.join("fig", "chicken.png")).convert_alpha()
+            self.image = pygame.transform.scale(self.image, (20, 20))
+        except:
+            self.image = pygame.Surface((8, 8))
+            self.image.fill(YELLOW)
+
         self.rect = self.image.get_rect(center=start_pos)
         self.speed = 10
         
@@ -329,7 +362,7 @@ def main():
     pygame.display.set_caption("Koukaton Defense Base")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 40)
-    large_font = pygame.font.SysFont(None,40)
+    large_font = pygame.font.SysFont(None, 80) # サイズを少し大きく修正
 
     gm = GameManager()
     map_manager = MapManager()
@@ -337,11 +370,6 @@ def main():
     enemy_group = pygame.sprite.Group()
     tower_group = pygame.sprite.Group()
     bullet_group = pygame.sprite.Group()
-    
-    
-    
-
-
     
     trap_group = pygame.sprite.Group()
     # 初期配置（テスト用）
@@ -359,7 +387,6 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
         
-            
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = pygame.mouse.get_pos()
                 
@@ -380,34 +407,13 @@ def main():
                          if gm.chicken >= cost:
                              gm.chicken -= cost
                              tower_group.add(Tower((mx//TILE_SIZE)*TILE_SIZE, (my//TILE_SIZE)*TILE_SIZE))
-                    
-        #             # 新規配置
-        #             # if map_manager.is_placeable(mx, my):
-        #             #      cost = 100
-        #             #      if gm.chicken >= cost:
-        #             #          gm.chicken -= cost
-        #             #          tower_group.add(Tower((mx//TILE_SIZE)*TILE_SIZE, (my//TILE_SIZE)*TILE_SIZE))
 
-                # 「右クリックでトラップ配置」処理
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mx, my = pygame.mouse.get_pos()
-                
-                #             # 新規配置
-                #             # if map_manager.is_placeable(mx, my):
-                #             #      cost = 100
-                #             #      if gm.chicken >= cost:
-                #             #          gm.chicken -= cost
-                #             #          tower_group.add(Tower((mx//TILE_SIZE)*TILE_SIZE, (my//TILE_SIZE)*TILE_SIZE))
-                
-                
+                # 右クリック：トラップ配置
                 if event.button == 3: # 右クリック 
-                    # タイル座標に変換
                     tx = (mx // TILE_SIZE) * TILE_SIZE
                     ty = (my // TILE_SIZE) * TILE_SIZE
         
-                        # 道の上であり、コストがあり、そのマスにトラップがまだない場合
                     if map_manager.is_path(mx, my) and gm.chicken >= TRAP_COST:
-                        # 既に同じマスにトラップがあるかチェック
                         existing_trap = None
                         for trap in trap_group:
                             if trap.rect.topleft == (tx, ty):
@@ -419,20 +425,19 @@ def main():
                             trap_group.add(Trap(tx, ty))
                             print(f"Trap placed at ({tx}, {ty}). Cost: {TRAP_COST}")
                 
-            # 【担当E】ここに「フィーバー発動キー（例: Fキー）」の処理を追加してください
+            # 【担当E】フィーバー発動キー（Fキー）
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
-                    # ゲージが満タンならフィーバー発動
                     if gm.fever_gauge >= 30:
                         gm.activate_fever()
        
-            if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     start_ticks = pygame.time.get_ticks()
                     gm.reset_game()
                     enemy_group.empty()                        
                     bullet_group.empty()
                     tower_group.empty()
+                    trap_group.empty()
                     tower_group.add(Tower(14 * TILE_SIZE, 4 * TILE_SIZE))
                     spawn_timer = 0
                 elif event.key == pygame.K_q:
@@ -444,11 +449,9 @@ def main():
         if gm.state == STATE_PLAY:
             gm.update()
             
-            # 難易度計算
             elapsed_time = (pygame.time.get_ticks() - start_ticks) / 1000
             difficulty_scale = elapsed_time / 30
             
-            # 敵出現間隔の決定（フィーバー中は短く）
             spawn_interval = 50 if gm.is_fever else 120
             spawn_timer += 1
             
@@ -457,19 +460,15 @@ def main():
                 is_elite = random.random() < 0.2
                 new_enemy = Koukaton(map_manager.waypoints, is_elite)
                 
-                # 経過時間に合わせて敵を少しずつ強くする
                 new_enemy.hp += int(10 * difficulty_scale)
-                new_enemy.speed += (0.5 * difficulty_scale)
+                new_enemy.speed += (0.2 * difficulty_scale)
                 enemy_group.add(new_enemy)
             
-            # 各オブジェクトの更新
             enemy_group.update(gm)
-            # 引数を3つ渡す方に統一（is_feverを反映させるため）
             tower_group.update(enemy_group, bullet_group, gm.is_fever) 
             bullet_group.update()
             trap_group.update(enemy_group, gm)
 
-            # 衝突判定（弾 vs 敵）
             hits = pygame.sprite.groupcollide(bullet_group, enemy_group, True, False)
             for bullet, hit_enemies in hits.items():
                 for enemy in hit_enemies:
@@ -480,43 +479,35 @@ def main():
                         if not gm.is_fever:
                             gm.fever_gauge = min(30, gm.fever_gauge + 1)
 
-            # ★重要：ここでゲームオーバー判定を行う
             gm.check_gameover()
 
         # --- 3. 描画処理 ---
         screen.fill(BLACK)
         
         if gm.state == STATE_PLAY:
-            map_manager.draw(screen, gm.is_fever) # 【担当E】is_feverを渡す
-            # 【担当C】trap_group.draw(screen) を追加
+            map_manager.draw(screen, gm.is_fever)
             tower_group.draw(screen)
             enemy_group.draw(screen)
             bullet_group.draw(screen)
-            trap_group.draw(screen)  # トラップ描画
+            trap_group.draw(screen)
             
-            # UI表示
             txt_chicken = font.render(f"Chicken: {gm.chicken}", True, WHITE)
             txt_life = font.render(f"Life: {gm.life}", True, WHITE)
             screen.blit(txt_chicken, (10, 10))
             screen.blit(txt_life, (10, 50))
             
-            # 【担当E】フィーバーゲージのUI表示
             FEVER_MAX = 30
             gauge_ratio = gm.fever_gauge / FEVER_MAX
-            pygame.draw.rect(screen, (50, 50, 50), (10, 550, 150, 20), 0) # ゲージ背景
-            pygame.draw.rect(screen, (255, 0, 255), (10, 550, 150 * gauge_ratio, 20), 0) # ゲージ本体
+            pygame.draw.rect(screen, (50, 50, 50), (10, 550, 150, 20), 0)
+            pygame.draw.rect(screen, (255, 0, 255), (10, 550, 150 * gauge_ratio, 20), 0)
             txt_fever = font.render(f"Fever: {gm.fever_gauge}/{FEVER_MAX}", True, WHITE)
             screen.blit(txt_fever, (170, 550))
 
-            # 【担当E】フィーバー中のテキスト表示
             if gm.is_fever:
                 sec = gm.fever_timer // FPS + 1
                 txt_fever_time = font.render(f"FEVER TIME! ({sec}s)", True, (255, 0, 255))
                 screen.blit(txt_fever_time, (SCREEN_WIDTH // 2 - txt_fever_time.get_width() // 2, 10))
 
-        # 【担当A】ここに「elif gm.state == STATE_GAMEOVER:」の描画処理を追加してください
-
-  
         elif gm.state == STATE_GAMEOVER:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
             overlay.set_alpha(128)
@@ -526,9 +517,8 @@ def main():
             txt_over = large_font.render("GAME OVER", True, RED)
             txt_retry = font.render("Press R to Restart / Q to Quit", True, WHITE)
             
-            # 中央に配置
-            screen.blit(txt_over, (SCREEN_WIDTH//2 - 160, SCREEN_HEIGHT//2 - 50))
-            screen.blit(txt_retry, (SCREEN_WIDTH//2 - 180, SCREEN_HEIGHT//2 + 50))
+            screen.blit(txt_over, (SCREEN_WIDTH//2 - txt_over.get_width()//2, SCREEN_HEIGHT//2 - 50))
+            screen.blit(txt_retry, (SCREEN_WIDTH//2 - txt_retry.get_width()//2, SCREEN_HEIGHT//2 + 50))
             
         pygame.display.flip()
         clock.tick(FPS)
